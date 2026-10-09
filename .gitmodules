@@ -1,0 +1,3 @@
+[submodule "NGS_101"]
+	path = NGS_101
+	url = https://github.com/henriksson-lab/NGS_101.git

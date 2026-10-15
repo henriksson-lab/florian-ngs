@@ -53,6 +53,14 @@ TSO_UMI_LEN = TSO_N_LEN + TSO_W_LEN          # 10 nt total
 TSO_G_TAIL = rt.TSO_G_TAIL_LNA               # rGrG+G
 TSO_5_MOD = "/5BiosG/"                       # 5' biotin, as in Smart-seq3
 
+# PTA is primed by a mixture: random hexamer for broad coverage, plus a primer matching
+# the constant TSO handle so the first strand's otherwise-lost 3' end is copied.  This is
+# deliberately NOT the full UMI-bearing TSO: its random 3' tail would not match the UMI
+# already written into a particular first strand and therefore cannot be a reliable primer.
+PTA_TSO_SPIKE = TSO_HANDLE
+PTA_RANDOM_HEXAMER = "N" * 6
+PTA_TSO_SPIKE_PS = 2                         # two protected bonds at the primer's 3' end
+
 # Oligo dT (18T) -- note: no 5' handle at all, unlike Smart-seq3's oligo-dT
 OLIGO_DT = "T" * 18
 
@@ -215,6 +223,29 @@ def scene_switching() -> Scene:
     return sc
 
 
+def scene_pta_priming() -> Scene:
+    """The two PTA primer classes on one representative first-strand template."""
+    site = "ACGTAC"                    # one concrete member of the random-hexamer pool
+    template = [
+        _seg("5' transcript body", "X" * 12, "w1", placeholder=True),
+        _seg("representative hexamer site", site, "w1"),
+        _seg("3' transcript body", "X" * 12, "w1", placeholder=True),
+        _seg("copied G tail", "CCC", "r3"),
+        _seg("copied UMI", "N" * TSO_UMI_LEN, "umi", placeholder=True),
+        _seg("TSO handle complement", revcomp(PTA_TSO_SPIKE), "tso"),
+    ]
+    sc = Scene()
+    sc.strand("first-strand cDNA", template)
+    sc.anneal("random hexamer", [_seg("hexamer", revcomp(site), None)],
+              to="first-strand cDNA", pair=("hexamer", "representative hexamer site"))
+    sc.anneal("TSO-handle spike-in", [_seg("handle primer", PTA_TSO_SPIKE, "tso")],
+              to="first-strand cDNA",
+              pair=("handle primer", "TSO handle complement"))
+    sc.arrow("random hexamer", "broad internal coverage")
+    sc.arrow("TSO-handle spike-in", "retain the 5' tag")
+    return sc
+
+
 def scene_dA_tailing() -> Scene:
     insert = Construct([_seg("cDNA", "X" * 20, "w1", placeholder=True)],
                        name="amplified cDNA")
@@ -350,7 +381,8 @@ def ligated(five_prime: bool = True) -> Construct:
 # Confirmed order: RT (oligo-dT + TSO) -> PTA -> NEBNext enzymatic fragmentation ->
 # dA-tailing -> ligate the annealed FakeD -> index PCR. So FakeD goes onto *fragments*,
 # both ends of every one of them, and the index PCR is where TSO selection happens.
-WORKFLOW = ("reverse transcription (oligo-dT + TSO)", "PTA amplification",
+WORKFLOW = ("reverse transcription (oligo-dT + TSO)",
+            "PTA (TSO-handle spike-in + random hexamer)",
             "NEBNext enzymatic fragmentation", "dA-tailing",
             "ligate annealed FakeD", "index PCR")
 

@@ -20,17 +20,19 @@ Marking: 🟢 as ordered · 🟡 inferred · 🔴 not stated · ✅ computed her
 
 ```
 reverse transcription (oligo-dT 18T + Smartseq3expressTSO)
-  -> PTA amplification
+  -> PTA amplification (random hexamer + TSO-handle spike-in)
   -> NEBNext enzymatic fragmentation
   -> dA-tailing
   -> ligate the annealed FakeD duplex      (standing in for 4 rounds of barcoding)
   -> index PCR                              (FakeTruseq-TSO selects TSO-carrying molecules)
 ```
 
-🟢 PTA runs on **first-strand cDNA** (confirmed 2026-10-06). 🔴 Still unspecified: the PTA
-random primer and terminator chemistry. See OPEN (5) for why the strand matters for the TSO.
+🟢 PTA runs on **first-strand cDNA** with both random hexamer and a TSO-handle
+spike-in. The spike-in is essential if the assay is meant to retain transcript 5' ends;
+without it, the design should instead be redirected toward 3' capture. Primer concentration
+and terminator chemistry remain unspecified.
 
-## The five oligos as ordered 🟢
+## Core oligos and the PTA spike-in 🟢
 
 | | sequence | length |
 |---|---|---|
@@ -39,6 +41,7 @@ random primer and terminator chemistry. See OPEN (5) for why the strand matters 
 | **FakeTruseq-TSO** | `ACACTCTTTCCCTACACGACGCTCTTCCGATCAGAGACAGATTGCGCAATG` | 51 nt |
 | **FakeD top** | `TTCAGACGTGTGCTCTTCCGATCT` | 24 nt |
 | **FakeD bottom** | `GATCGGAAGAGCACACGTCTGAA` | 23 nt |
+| **PTA TSO-handle spike-in** | `AGAGACAGATTGCGCAATG` with two protected 3'-terminal bonds | 19 nt |
 
 ## ✅ What each one is, checked against the canonical blocks
 
@@ -314,10 +317,12 @@ the UMI ending in G, which would otherwise be indistinguishable from the templat
 `GGG` and make the UMI boundary ambiguous. Worth confirming that the intended UMI length
 really is 10, because every downstream offset depends on it.
 
-### ⚠ (5) PTA on first-strand cDNA cannot copy the TSO end
+### ⚠ (5) The TSO-handle spike-in preserves the 5' end during PTA
 
-🟢 Confirmed: PTA runs on **first-strand** cDNA. 🔴 Random primer and terminator chemistry
-are still unspecified.
+🟢 Confirmed protocol decision: PTA runs on **first-strand** cDNA with a primer mixture
+containing **random hexamer plus the TSO-handle spike-in**. The spike-in is
+`AGAGACAGATTGCGCAATG`, protected at its two 3'-terminal bonds. Its concentration and the
+terminator chemistry remain unspecified.
 
 **Why the strand matters for the TSO.** ✅ The first strand carries the TSO only as its
 complement, at its **3' end** (pinned in the selftest):
@@ -344,7 +349,7 @@ strand-specific, which is why the strand question mattered:
 | **first strand** (this protocol) | 3' end, as the complement | ≈ none: every copy starts downstream of it |
 | second strand (sense) | 5' end, as the handle | **all** primed within one amplicon length; they run *into* it |
 
-🟡 **Consequences**, as the protocol stands:
+🟡 **Consequences if the spike-in is omitted:**
 
 1. The tag exists in roughly **one copy per transcript**: the original first strand. PTA
    multiplies the transcript body, not the tagged end.
@@ -356,19 +361,13 @@ strand-specific, which is why the strand question mattered:
    low yield of tagged molecules, and a library dominated by whatever leaks through
    OPEN (3).
 
-🟡 **Possible rescue already in the tube: the TSO itself as a primer.** Free TSO carried
-into PTA is complementary to exactly that 3' end. Its 19-nt handle would anneal there,
-and phi29's 3'→5' proofreading exo can trim the mismatched random-UMI/`GGG` tail and then
-extend, copying the template's *own* UMI. That would give a sense copy that **starts with
-the handle**, which random primers then copy efficiently (second row of the table). Whether
-it happens is unknown: TSO cleanup before PTA, an alkaline denaturation step (which would
-cleave after the 3' riboGs and leave a 2',3'-cyclic phosphate), and the 3'-LNA all argue
-against it.
+🟢 **The protocol now supplies the missing end deliberately.** The PTA reaction contains
+both random hexamer and a TSO-handle primer. The latter anneals to the terminal handle and
+makes a sense copy that starts with the original molecule's tag and UMI; random primers can
+then cover that copy efficiently. This is what converts otherwise broad, end-losing PTA
+coverage into a 5'-retaining assay.
 
-🟢 **Being tested (2026-10-06):** TSO primers added during the PTA reaction.
-
-🟡 **What the added primer should look like.** Which primer is used decides whether the UMI
-stays honest:
+Which TSO-derived primer is used still matters for whether the UMI stays honest:
 
 | Primer added to PTA | 3' end lands on | Risk |
 |---|---|---|
@@ -376,22 +375,22 @@ stays honest:
 | the full TSO (N8W2 + `rGrG+G`) | the UMI and the G-tail | ⚠ its random UMI mismatches the template's. phi29 must trim 13 nt before extending; any copy that extends without trimming carries the **primer's** UMI → UMI inflation, more "molecules" than there were |
 | `FakeTruseq-TSO` | same as handle-only | ✅ works, but the 32-nt 5' tail is dead weight in PTA |
 
-So: **handle-only, with two 3'-terminal phosphorothioates** so phi29's exo doesn't eat it
-(same protection as the PTA random primer), no rG/LNA, no biotin. Its Tm (≈ 53.6 °C) is far
-above PTA's 30 °C, so it out-competes hexamers for that site. 🟡 Readouts worth taking from
+The chosen spike-in is therefore **handle-only, with two 3'-terminal phosphorothioates**
+so phi29's exo doesn't eat it (same protection as the PTA random primer), no rG/LNA, no
+biotin. Its Tm (≈ 53.6 °C) is far above PTA's 30 °C, so it out-competes hexamers for
+that site. 🟡 Readouts worth taking from
 the experiment: tagged:internal qPCR ratio (below), and in the data the number of distinct
 UMIs per gene vs a no-primer control. A jump far beyond expected molecule counts suggests
 UMI-bearing primers are being extended.
 
-**Fixes, cheapest first** (🟡 design suggestions, not tested):
+**The design fork is now explicit:**
 
-- **Spike a handle primer into PTA:** `AGAGACAGATTGCGCAATG` with 3'-phosphorothioates, like
-  the PTA random primer. It anneals only at the TSO end, so it copies exactly the end the
-  random primers miss.
-- **Or make a second strand before PTA:** one extension with the same handle primer (the
-  Smart-seq ISPCR step, without the PCR). The tag then sits at the 5' end of a template
-  and is copied by every nearby random primer.
-- **Measure it first:** qPCR before and after PTA with `FakeTruseq-TSO` + a gene-specific
+- **For 5' capture:** keep the TSO-handle spike-in in the PTA primer mixture. It copies
+  exactly the terminal region that random hexamers miss.
+- **Without the spike-in:** do not expect faithful 5' retention. Redesign the assay to
+  capture the transcript's **3' end**, which also requires giving the oligo-dT side an
+  addressable handle rather than leaving it as the current bare 18-mer.
+- **Verify:** qPCR before and after PTA with `FakeTruseq-TSO` + a gene-specific
   reverse primer near a transcript 5' end, normalised to an internal amplicon of the same
   gene. If the tagged:internal ratio collapses after PTA, this is the cause.
 

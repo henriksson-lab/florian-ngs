@@ -70,9 +70,10 @@ is sequence-selected, the other is not.""")}
 {panel([row((" -> ".join(f.WORKFLOW[:3]),)), row(("   -> " + " -> ".join(f.WORKFLOW[3:]),))],
        cls="small", caption="The confirmed order of operations.")}
 
-{caveat("""<b>Status: oligos and workflow order.</b> This page is built from the five ordered oligo
-sequences and nothing else. The PTA random primer and terminators are not specified yet. PTA runs on first-strand
-cDNA, which leaves the TSO end uncopied (Part 2). The
+{caveat("""<b>Status: oligos and workflow order.</b> PTA runs on first-strand cDNA with
+<b>both random hexamer and a TSO-handle spike-in</b>. The spike-in copies the tagged 3' end
+that random priming alone would lose (Part 2). Primer concentration and terminator chemistry
+remain to be specified. The
 index PCR uses our own primers (shared with the scWGS protocol), so the final library
 below is <i>predicted</i> from them. Everything marked inferred is inferred. The three
 consequential design questions are at the bottom of this page and in
@@ -148,27 +149,37 @@ ligation. That asymmetry is what the rest of the protocol is built around.""")}
 
 def part2_pta() -> str:
     return f"""<h2>Part 2 &mdash; amplification</h2>
-<h3>(6) PTA</h3>
-{caveat("""<b>Not yet specified, and it is the step the whole design exists for.</b>
+<h3>(6) PTA with random hexamer + TSO-handle spike-in</h3>
+<seq>
+{oligo("PTA TSO-handle spike-in", [seg("constant TSO handle", f.PTA_TSO_SPIKE, "tso")])}
+{oligo("PTA random hexamer", [seg("random hexamer", f.PTA_RANDOM_HEXAMER, None,
+                                  placeholder=True)])}
+</seq>
+{panel(f.scene_pta_priming().rows(), cls="long",
+       caption="Both primer classes act in PTA: random hexamers cover the transcript body; "
+               "the constant-handle spike-in recovers the tagged 5' end.")}
+{info("""The PTA primer pool contains <b>both</b> species. Random hexamer provides broad
+transcript coverage. The 19-nt constant-handle primer copies the TSO-tagged end and carries
+two protected bonds at its 3' end, like the PTA random primer. It is the constant handle,
+not the full UMI-bearing TSO: a newly drawn random UMI would not match the UMI already
+written into that first strand.""")}
+{caveat("""<b>The spike-in is required for a 5' assay.</b>
 Primary Template-directed Amplification uses a strand-displacing polymerase with
 irreversible terminators, so products come off the <i>original</i> template rather than
 off each other &mdash; quasi-linear instead of exponential, which is why it is so much more
-even than MDA on single cells. What is still missing here: the random primer and the
-terminator chemistry. <b>Confirmed: it runs on first-strand cDNA</b> &mdash; which is bad
-for the TSO end, below.""")}
-{caveat("""<b>PTA on the first strand cannot copy the TSO end.</b> The first strand carries
+even than MDA on single cells. But random priming alone does not preserve this end. If the
+TSO-handle primer is omitted, this should no longer be treated as a 5'-capture design;
+the alternative is to redesign selection around the transcript's 3' end.""")}
+{info("""<b>Why random hexamer alone is insufficient.</b> The first strand carries
 the tag only as its complement, at its <b>3' end</b>. A polymerase copies from a primer
 toward the template's 5' end, so every random-primed copy <i>starts</i> at its primer and
 never includes the bases 3' of it. No copy carries the <tso>handle</tso>, unless a hexamer
 happens to land in the last few bases. Copies of copies don't help, because their 5' ends
 are random primer sites. On a sense second strand the tag would sit at the <i>5'</i> end,
-and every primer within one amplicon length would run into it. As it stands the tag exists
-in about one copy per transcript (the original), as a single-stranded 3' tail that FS
-end-prep will likely trim. <b>Cheapest fix:</b> spike a PS-protected handle primer
-<code>AGAGACAGATTGCGCAATG</code> into PTA, or extend a second strand with it first.
-Free TSO carried over might do this by accident (phi29 trimming its mismatched UMI tail),
-but nothing guarantees it. <b>Test:</b> qPCR <code>FakeTruseq-TSO</code> + a 5'-proximal
-gene primer vs an internal amplicon, before and after PTA.""")}
+and every primer within one amplicon length would run into it. The explicit
+<code>{f.PTA_TSO_SPIKE}</code> spike-in solves this by priming that terminal handle directly
+and making a sense copy that random hexamers can subsequently cover. Verify preservation
+with tagged:internal qPCR before and after PTA.""")}
 """
 
 
@@ -283,7 +294,8 @@ hides <me>AGAGACAG</me> inside itself. At 50 cycles that is
 <b>Read 2 has no overhead at all</b>, so it is the one to make long if coverage matters;
 read 1 only has to reach far enough past the UMI to map. With the stock TruSeq primer
 instead (open question 1), add 19 cycles.""")}
-{sp.section(f.final_library(), f.SEQ_PRIMERS)}
+{sp.section(f.final_library(), f.SEQ_PRIMERS,
+            content_primers=tuple(p for p in f.SEQ_PRIMERS if not p.expect_mismatch))}
 """
 
 
@@ -352,9 +364,10 @@ cycle count or input mass taken from those numbers is wrong by an unknown ratio.
 yield. If it is comparable, give <code>FakeD</code> a Y shape &mdash; NEBNext's own adapter
 is a USER-cut hairpin for exactly this reason &mdash; or block <code>FakeD top</code> from
 priming.""")}
-{info("""Still unsettled: the PTA random primer and terminator chemistry, and whether the
-10-nt UMI length is intended. PTA on first-strand cDNA is confirmed, and is the biggest
-open risk: see Part 2.""")}
+{info("""Still unsettled: the spike-in concentration, the PTA terminator chemistry, and
+whether the 10-nt UMI length is intended. The primer logic is now explicit: random hexamer
+for coverage plus TSO-handle spike-in for 5' retention. Without the latter, pursue a 3'
+capture design instead.""")}
 </div>
 """
 

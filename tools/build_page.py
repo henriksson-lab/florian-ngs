@@ -373,7 +373,8 @@ capture design instead.""")}
 
 
 def main() -> None:
-    parts = [head("florian-PTA-rnaseq"), MD_STYLE, preamble(), oligos_section(),
+    parts = [head("florian-PTA-rnaseq", home="index.html", include_header=False),
+             MD_STYLE, preamble(), oligos_section(),
              part1_rt(), part2_pta(), part3_faked(), part4_index(), sequencing(),
              open_questions()]
     OUT.write_text("\n".join(parts), encoding="utf-8")

@@ -7,6 +7,21 @@ unpublished and does not belong in the public NGS 101 protocol catalogue.
 Shared molecular primitives and the published SMART-seq/Atrandi models come from the pinned
 [`NGS_101`](https://github.com/henriksson-lab/NGS_101) Git submodule.
 
+The site also includes **Codex RNAseq I: PTA-free 5-prime RNA capture with directional
+adapter ligation**, a proposed pilot rather than an experimentally validated protocol.
+Its model is `tools/codex_rnaseq_i.py`; `tools/build_codex_rnaseq_i.py` renders its
+workflow, candidate oligos and computed sequencing layout. The full original proposal
+is preserved verbatim in [`reference/codex-rnaseq-i-original.md`](reference/codex-rnaseq-i-original.md).
+It is a design record, not an external source-text extraction.
+
+`build_site.py` runs both local page builders, renders the existing research note,
+and assembles the overview, schematics and original pilot description in `_site/`.
+Models import the pinned submodule's canonical sequences and shared drawing APIs;
+the pilot uses `Workflow` for reactions and `ProtocolGraph` for reagent provenance,
+cleanup losses and terminal outcomes. Structural model validation does not establish
+experimental performance. The pilot stays in this repository and outside the public
+NGS 101 catalogue.
+
 ```sh
 git submodule update --init
 python3 tools/selftest.py

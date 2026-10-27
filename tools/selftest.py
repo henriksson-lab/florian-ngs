@@ -310,4 +310,7 @@ check("every declared sequencing primer lands where declared (lib/seqprimers.py)
 check("the UMI sits inside read 1, not in an index read",
       lib.top().index("N") < lib.top().index("X"))
 
+from selftest_codex_rnaseq_i import run as check_codex_rnaseq_i
+check_codex_rnaseq_i(check)
+
 check.report()
